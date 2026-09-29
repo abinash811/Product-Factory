@@ -1,6 +1,6 @@
 # Product Factory — Foundation Proposal
 
-Status: **DRAFT, waiting for product-owner approval. No code has been written.**
+Status: **Approved in discussion (2026-09-29). Superseded where it conflicts with `docs/TECHNOLOGY_DECISIONS.md` and `docs/adr/`.** Step 0 built; later steps follow section 7.
 Date: 2026-09-29
 
 ---
