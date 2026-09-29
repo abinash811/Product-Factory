@@ -9,9 +9,9 @@ cd "${CLAUDE_PROJECT_DIR:-.}" || exit 0
 fail=0
 case "$path" in
   *.py)
-    if command -v ruff >/dev/null 2>&1; then
-      ruff format -q "$path" >/dev/null 2>&1
-      ruff check "$path" || fail=1
+    if command -v uv >/dev/null 2>&1 && [ -f apps/api/pyproject.toml ]; then
+      (cd apps/api && uv run --frozen ruff format -q "$path" >/dev/null 2>&1 \
+        && uv run --frozen ruff check "$path") || fail=1
     fi ;;
   *.ts|*.tsx|*.js|*.jsx|*.json|*.css|*.md)
     if [ -x node_modules/.bin/prettier ]; then node_modules/.bin/prettier --write "$path" >/dev/null 2>&1; fi

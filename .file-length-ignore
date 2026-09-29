@@ -5,3 +5,5 @@ apps/web/src/core/api/schema.d.ts
 apps/api/migrations/versions/*
 # Vendored shadcn/ui primitives are copied in, not authored here
 apps/web/src/design-system/ui/*
+# Local virtual environments
+apps/api/.venv/*

@@ -9,10 +9,10 @@ lucide-react (icons) · Geist/Inter via `next/font` · Sonner (toasts) · next-t
 Typed API client generated from OpenAPI: openapi-typescript + openapi-fetch
 
 ## Backend
-Python 3.12+ · FastAPI · Pydantic v2 · OpenAPI · pydantic-settings · structlog · slowapi (rate limiting, Redis) · httpx · Jinja2 (email templates) · mypy (strict)
+Python 3.13 · FastAPI · Pydantic v2 · OpenAPI · pydantic-settings · structlog · slowapi (rate limiting, Redis) · httpx · Jinja2 (email templates) · mypy (strict)
 
 ## Data, auth, files
-PostgreSQL on Supabase · SQLAlchemy 2.0 (async) + Alembic · Supabase Auth · Supabase Storage · Redis
+PostgreSQL on Supabase · SQLAlchemy 2.0 (async) + Alembic · psycopg 3 (one driver for API, migrations and jobs) · Supabase Auth · Supabase Storage · Redis
 Search: Postgres full-text (for now). Multi-tenancy: `organization_id` on every tenant table, enforced in the API repository layer and by Postgres row-level security.
 
 ## Jobs and integrations

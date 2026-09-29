@@ -13,5 +13,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Same command Claude runs locally. Later build steps add lint, type checks and tests to `make check`.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      # Same command Claude runs locally. Later build steps add frontend checks and scans to it.
       - run: make check
+
+  api-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image and check it starts healthy
+        run: |
+          docker build -t factory-api:ci apps/api
+          docker run -d --name api -e PORT=8000 -p 8000:8000 factory-api:ci
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8000/health/live && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1

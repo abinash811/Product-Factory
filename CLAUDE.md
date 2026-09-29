@@ -41,7 +41,8 @@ When a bug appears, use the `debug-root-cause` skill: reproduce, find the cause,
 
 ## Commands
 - `make check` — everything that must pass before work is done (grows with each build step).
-- `bash scripts/check-file-length.sh` — 300-line rule.
+- `make api-dev` — run the API locally. `make api-test` — backend tests only.
+- Python deps: `cd apps/api && uv add <pkg>` (dev: `uv add --dev <pkg>`). Never edit `pyproject.toml` or `uv.lock` by hand to add a package.
 
 ## Automatic guardrails (hooks in `.claude/hooks/`)
 Edits to `.env` files and existing migrations are blocked; destructive commands, pushes to main and `--no-verify` are blocked; files are formatted/linted after each edit; the turn cannot end while `make check` fails. Hooks are a safety net, not a boundary: CI runs the same checks and is the real gate.
