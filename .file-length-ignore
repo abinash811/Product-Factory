@@ -1,0 +1,7 @@
+# Files exempt from the 300-line rule. One shell glob per line. Every entry needs a reason.
+# Generated code (never hand-edited)
+apps/web/src/core/api/schema.d.ts
+# Database migrations are append-only history
+apps/api/migrations/versions/*
+# Vendored shadcn/ui primitives are copied in, not authored here
+apps/web/src/design-system/ui/*

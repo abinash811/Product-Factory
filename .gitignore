@@ -1,0 +1,32 @@
+# Secrets: never commit real values. Names go in .env.example.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local Claude overrides
+.claude/settings.local.json
