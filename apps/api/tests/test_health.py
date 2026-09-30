@@ -1,13 +1,16 @@
 from collections.abc import Iterator
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.health import readiness_checks, register_readiness_check
 
 
 @pytest.fixture(autouse=True)
-def _clean_checks() -> Iterator[None]:
+def _clean_checks(
+    app: FastAPI,
+) -> Iterator[None]:  # depends on app: clear after it registers checks
     readiness_checks.clear()
     yield
     readiness_checks.clear()
