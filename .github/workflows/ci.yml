@@ -11,8 +11,21 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: factory
+          POSTGRES_PASSWORD: factory
+          POSTGRES_DB: factory
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U factory -d factory"
+          --health-interval 3s --health-timeout 3s --health-retries 20
     steps:
       - uses: actions/checkout@v4
+      - name: Ensure the Postgres client is present
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
