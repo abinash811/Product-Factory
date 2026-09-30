@@ -41,7 +41,8 @@ When a bug appears, use the `debug-root-cause` skill: reproduce, find the cause,
 
 ## Commands
 - `make check` — everything that must pass before work is done (grows with each build step).
-- `make api-dev` — run the API locally. `make api-test` — backend tests only.
+- `make api-dev` — run the API locally (starts the database and applies migrations first). `make api-test` — backend tests only.
+- `make db-up` starts local Postgres (Docker, or native where Docker is unavailable). `make db-migrate` applies migrations. `make db-revision m="..."` creates one. Read `database-conventions` before touching models or migrations.
 - Python deps: `cd apps/api && uv add <pkg>` (dev: `uv add --dev <pkg>`). Never edit `pyproject.toml` or `uv.lock` by hand to add a package.
 
 ## Automatic guardrails (hooks in `.claude/hooks/`)

@@ -7,11 +7,12 @@ A reusable, production-grade foundation for building many products (pharmacy, HR
 - Layout: [`docs/architecture.md`](docs/architecture.md) · Decisions: [`docs/adr/`](docs/adr/)
 - Build plan and research: [`docs/FACTORY_PROPOSAL.md`](docs/FACTORY_PROPOSAL.md)
 
-Status: **Step 0 (rulebook and guardrails) and Step 1 (backend skeleton) done.** Next: Step 2, the database.
+Status: **Steps 0-2 done** (rulebook and guardrails, backend skeleton, database). Next: Step 3, login, organizations and permissions.
 
 ## Run it
 ```
-make api-dev      # API on http://localhost:8000 (docs at /docs in development)
+make db-up        # local Postgres (Docker, or native when Docker is unavailable)
+make api-dev      # applies migrations, then serves the API on http://localhost:8000 (docs at /docs)
 make check        # lint, types, tests, 300-line rule: must pass before anything is "done"
 ```
 Copy `apps/api/.env.example` to `apps/api/.env` for local settings.

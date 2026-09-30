@@ -26,4 +26,4 @@ product-factory/
 
 Flow: Browser → Next.js (Vercel) → FastAPI (Render) → Postgres/Storage (Supabase), Redis → Celery workers. Auth by Supabase; FastAPI verifies its tokens. Isolation model: Organization → Membership (user + role) → Permissions (`resource:action`, configured per product) → Resources.
 
-Only the docs, `.claude/`, scripts and CI exist so far. App folders are created as build steps land (see `docs/FACTORY_PROPOSAL.md`, section 7).
+Built so far: docs, `.claude/`, scripts, CI, the API skeleton and the database layer (`app/core/db/`, migrations, local Postgres). App folders are created as build steps land (see `docs/FACTORY_PROPOSAL.md`, section 7).
