@@ -6,7 +6,7 @@ Variable names live in `.env.example`; real values live in host secret stores.
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     # None = on outside production, off in production.
     docs_enabled: bool | None = None
 
+    # Database. Accepts postgresql://... (as Supabase shows it); converted to the psycopg 3 driver.
+    # SecretStr keeps the password out of logs and reprs.
+    database_url: SecretStr = SecretStr(
+        "postgresql+psycopg://factory:factory@localhost:5432/factory"
+    )
+    # Migrations should use the DIRECT connection (not the pooler). Defaults to database_url.
+    migration_database_url: SecretStr | None = None
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    # Set true when DATABASE_URL points at a transaction pooler (Supabase port 6543 / pgbouncer).
+    db_pooler: bool = False
+
+    @field_validator("database_url", "migration_database_url", mode="after")
+    @classmethod
+    def _use_psycopg_driver(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None:
+            return None
+        url = value.get_secret_value()
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return SecretStr("postgresql+psycopg://" + url[len(prefix) :])
+        return value
+
     @field_validator("frontend_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -38,6 +61,8 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _production_rules(self) -> "Settings":
         if self.app_env == "production":
+            if "database_url" not in self.model_fields_set:
+                raise ValueError("DATABASE_URL must be set explicitly in production")
             if not self.frontend_origins:
                 raise ValueError("FRONTEND_ORIGINS must be set in production")
             bad = [o for o in self.frontend_origins if o == "*" or not o.startswith("https://")]
@@ -52,6 +77,10 @@ class Settings(BaseSettings):
     @property
     def docs_on(self) -> bool:
         return self.docs_enabled if self.docs_enabled is not None else not self.is_production
+
+    @property
+    def alembic_database_url(self) -> str:
+        return (self.migration_database_url or self.database_url).get_secret_value()
 
     @property
     def json_logs(self) -> bool:

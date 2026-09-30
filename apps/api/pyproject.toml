@@ -4,10 +4,13 @@ version = "0.1.0"
 description = "Product Factory backend (FastAPI)"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "alembic>=1.20.0",
     "fastapi[standard]>=0.142.0",
     "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.6",
     "pydantic-settings>=2.15.0",
     "slowapi>=0.1.10",
+    "sqlalchemy[asyncio]>=2.1.1",
     "structlog>=26.1.0",
 ]
 
@@ -48,6 +51,7 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 addopts = "-ra --cov=app --cov-report=term-missing --cov-fail-under=90"
 filterwarnings = ["error::DeprecationWarning:app.*"]
 
