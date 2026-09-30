@@ -36,6 +36,9 @@ Sentry · OpenTelemetry · PostHog · health checks and audit logs in core · Ma
 ## Claude setup
 `CLAUDE.md` + `.claude/` skills, agents and hooks (this repo). MCPs: GitHub, Playwright (locked to localhost, added with the frontend).
 
+## Credentials
+The Factory holds none. Each product gets its own Supabase project and secrets, supplied through host secret stores (ADR 0004, `docs/NEW_PRODUCT_SETUP.md`). Login sits behind a replaceable module; users, organizations and roles live in our own database.
+
 ## Reserved
 `ai/` (LLM gateway, RAG, agents, etc.): not built until requested.
 
