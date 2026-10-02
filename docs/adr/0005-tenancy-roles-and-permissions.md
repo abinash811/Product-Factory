@@ -7,7 +7,7 @@
 Products need Organization → Users → Roles → Permissions → Resources, with roles that differ per product and customizable per customer, and tenant data that can never leak.
 
 ## Decision
-- **Tables:** `users` (our own id; provider id stored beside it), `organizations`, `roles`, `memberships` (one role per member). Invitations follow in build step 3d.
+- **Tables:** `users` (our own id; provider id stored beside it), `organizations`, `roles`, `memberships` (one role per member). `invitations` (email + role + expiry; only a hash of the secret token is stored; accepting needs the token AND a login with the matching email; atomic, single use). Row-level security lets the holder of a token see exactly that one invitation. Email delivery arrives with build steps 5-6; until then the API returns the token once to the inviter.
 - **Roles live in the database, per organization.** New organizations get starter roles copied from `product/roles.config.json`; organizations can create, edit and delete custom roles at runtime. The product config also defines the catalog of valid permissions (factory core plus product-specific), so a custom role can only use real permissions.
 - **Permissions** are `resource:action` with wildcards (`*`, `resource:*`). Every route declares its permission; permissions named in routes are checked against the catalog at startup.
 - **No privilege escalation:** you can only grant, assign, edit or remove roles whose permissions you hold yourself. The `owner` role (`*`) is immutable and an organization always keeps at least one owner.

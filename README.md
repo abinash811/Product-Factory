@@ -7,7 +7,7 @@ A reusable, production-grade foundation for building many products (pharmacy, HR
 - Layout: [`docs/architecture.md`](docs/architecture.md) · Decisions: [`docs/adr/`](docs/adr/)
 - Build plan and research: [`docs/FACTORY_PROPOSAL.md`](docs/FACTORY_PROPOSAL.md)
 
-Status: **Steps 0-2 done** (rulebook and guardrails, backend skeleton, database). Next: Step 3, login, organizations and permissions.
+Status: **Steps 0-3 done** (rulebook and guardrails, backend skeleton, database, login/organizations/custom roles/invitations with row-level security). Next: Step 4, frontend and design system.
 
 ## Run it
 ```

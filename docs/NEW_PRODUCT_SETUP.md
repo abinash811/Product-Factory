@@ -30,3 +30,13 @@ API must not connect as one. In production the API's readiness check fails if it
 Create the application role once with `infra/postgres/app_role.sql` (change the role name and password, and the
 role named in `ALTER DEFAULT PRIVILEGES FOR ROLE ...` to your migration/owner role), then put the application
 role's connection string in `DATABASE_URL`.
+
+## Supabase settings to check for each product
+
+- **Turn on email confirmation** (Authentication settings). Invitations are matched to the email address in the login
+  token, so unconfirmed emails would weaken them.
+- **Use the new signing keys** (asymmetric JWT signing). The API accepts only public-key signed tokens (ES256, RS256, EdDSA) and
+  rejects shared-secret (HS256) tokens on purpose.
+- **First-product smoke test (do this once, with a real token):** sign in, call `GET /api/v1/me`, and confirm it succeeds.
+  If it answers 401, compare the token's `iss` and `aud` claims with `AUTH_ISSUER` / `AUTH_AUDIENCE`: the Factory assumes
+  issuer `<SUPABASE_URL>/auth/v1` and audience `authenticated`, which could not be verified without a real project.
