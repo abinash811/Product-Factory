@@ -1,5 +1,6 @@
 import os
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 from typing import Any
 
 # Must be set before `app` modules are imported (the limiter and module-level app read settings).
@@ -12,26 +13,63 @@ TEST_DATABASE_URL = os.environ.get(
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.pop("MIGRATION_DATABASE_URL", None)
 
+import psycopg  # noqa: E402
 import pytest  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.core.config import Settings  # noqa: E402
+from app.core.db import registry  # noqa: E402, F401
+from app.core.db.base import Base  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.main import create_app  # noqa: E402
+from tests.auth_helpers import SUPABASE_URL, build_test_verifier  # noqa: E402
 from tests.db_models import ScratchBase  # noqa: E402
+
+API_ROOT = Path(__file__).resolve().parents[1]
 
 
 def make_settings(**overrides: Any) -> Settings:
-    values: dict[str, Any] = {"app_env": "test", "database_url": TEST_DATABASE_URL, **overrides}
+    values: dict[str, Any] = {
+        "app_env": "test",
+        "database_url": TEST_DATABASE_URL,
+        "supabase_url": SUPABASE_URL,
+        **overrides,
+    }
     return Settings(_env_file=None, **values)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def migrated_test_database() -> None:
+    """Bring the test database to the latest schema once per run (also proves migrations apply)."""
+    cfg = Config(str(API_ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(API_ROOT / "migrations"))
+    cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    cfg.attributes["configure_logger"] = False
+    command.upgrade(cfg, "head")
+
+
+def _truncate_all_tables() -> None:
+    names = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    with psycopg.connect(TEST_DATABASE_URL.replace("+psycopg", ""), autocommit=True) as connection:
+        connection.execute(f"TRUNCATE {names} RESTART IDENTITY CASCADE")
+
+
+@pytest.fixture
+def clean_db() -> Iterator[None]:
+    """For tests that really commit data: start and finish with empty application tables."""
+    _truncate_all_tables()
+    yield
+    _truncate_all_tables()
 
 
 @pytest.fixture
 def app() -> FastAPI:
-    return create_app(make_settings())
+    return create_app(make_settings(), token_verifier=build_test_verifier())
 
 
 @pytest.fixture
