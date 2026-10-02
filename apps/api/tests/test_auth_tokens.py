@@ -1,6 +1,7 @@
 import jwt
 import pytest
 from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
+from pydantic import ValidationError
 
 from app.core.auth.tokens import AuthUnavailableError, JwtVerifier, build_verifier
 from app.core.errors import UnauthenticatedError
@@ -84,3 +85,8 @@ def test_settings_derive_key_address_and_issuer() -> None:
     custom = make_settings(supabase_url="https://abc.supabase.co", auth_issuer="https://x/y")
     assert custom.auth_issuer_url == "https://x/y"
     assert make_settings(supabase_url=None).auth_jwks_url is None
+
+
+def test_production_refuses_to_start_without_a_login_provider() -> None:
+    with pytest.raises(ValidationError, match="SUPABASE_URL"):
+        make_settings(app_env="production", frontend_origins="https://a.example", supabase_url=None)
