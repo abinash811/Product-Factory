@@ -68,15 +68,16 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.limiter = limiter
+    app.state.trusted_proxy_hops = settings.trusted_proxy_hops
     app.state.token_verifier = token_verifier or build_verifier(settings)
     config_dir = Path(settings.product_config_dir) if settings.product_config_dir else None
     app.state.product_roles = load_product_roles(config_dir)  # fails fast if the config is wrong
     app.state.engine = engine
     app.state.session_factory = build_session_factory(engine)
     register_readiness_check("database", lambda: check_database(engine))
-    if (
-        settings.is_production
-    ):  # a deploy whose database role bypasses row-level security must not go live
+    # A deploy whose database role bypasses row-level security must not go live. Applies in
+    # production, and also whenever login is configured (so a forgotten APP_ENV cannot skip it).
+    if settings.is_production or settings.supabase_url:
         register_readiness_check("row_level_security", lambda: check_rls_enforced(engine))
 
     # add_middleware wraps: the LAST one added is the OUTERMOST. Order, outside to inside:

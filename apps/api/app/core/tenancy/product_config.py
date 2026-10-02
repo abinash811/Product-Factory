@@ -41,6 +41,8 @@ class ProductRoles(BaseModel):
         if owner is None or owner.permissions != ["*"]:
             raise ValueError("an 'owner' default role holding exactly ['*'] is required")
         for role in self.default_roles:
+            if role.key != OWNER_KEY and "*" in role.permissions:
+                raise ValueError(f"only the owner role may hold '*', not '{role.key}'")
             bad = invalid_grants(role.permissions, self.catalog)
             if bad:
                 raise ValueError(f"role '{role.key}' has unknown permissions: {bad}")

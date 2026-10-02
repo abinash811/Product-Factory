@@ -9,7 +9,7 @@ from app.core.auth.models import User
 from app.core.errors import ConflictError, PermissionDeniedError
 from app.core.pagination import PageData, PageParams, SortField
 from app.core.tenancy.context import OrgContext
-from app.core.tenancy.models import Membership, Role
+from app.core.tenancy.models import Membership, Organization, Role
 from app.core.tenancy.permissions import covers
 from app.core.tenancy.product_config import OWNER_KEY
 from app.core.tenancy.repository import TenantRepository
@@ -29,6 +29,12 @@ class MembershipRepository(TenantRepository[Membership]):
             column = columns[field.field]
             statement = statement.order_by(column.desc() if field.descending else column.asc())
         return await self.paginate(statement.order_by(Membership.id), params)
+
+    async def lock_organization(self) -> None:
+        """Serialise owner changes: concurrent requests queue here, so the last-owner rule holds."""
+        await self.session.execute(
+            select(Organization.id).where(Organization.id == self.organization_id).with_for_update()
+        )
 
     async def owner_count(self) -> int:
         statement = (
@@ -56,8 +62,9 @@ async def change_member_role(
     membership_id: uuid.UUID,
     role_id: uuid.UUID,
 ) -> Membership:
+    await repo.lock_organization()
     target = await repo.get_or_404(membership_id)
-    new_role = await roles.get_or_404(role_id)  # a role from another organization is a 404
+    new_role = await roles.get_shared_or_404(role_id)  # another organization's role is a 404
     # You can only move people between roles you could hold yourself.
     if not covers(ctx.permissions, new_role.permissions) or not covers(
         ctx.permissions, target.role.permissions
@@ -74,6 +81,7 @@ async def change_member_role(
 async def remove_member(
     ctx: OrgContext, repo: MembershipRepository, membership_id: uuid.UUID
 ) -> None:
+    await repo.lock_organization()
     target = await repo.get_or_404(membership_id)
     if target.user_id != ctx.user.id:  # leaving yourself is always allowed; removing others is not
         if not ctx.can("members:manage"):

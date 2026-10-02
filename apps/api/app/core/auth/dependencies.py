@@ -8,13 +8,12 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth.models import User
 from app.core.auth.tokens import AuthUnavailableError, TokenVerifier, VerifiedIdentity
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.db.tenant_context import set_current_user
 from app.core.errors import UnauthenticatedError
 
@@ -35,9 +34,22 @@ async def get_identity(
 
 async def get_current_user(
     identity: Annotated[VerifiedIdentity, Depends(get_identity)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
 ) -> User:
     """Finds our user row for the verified identity, creating it on first login."""
+    existing = (
+        await session.scalars(
+            select(User).where(
+                User.auth_provider == identity.provider, User.auth_subject == identity.subject
+            )
+        )
+    ).first()
+    if existing is not None:  # the common case: no write unless the email actually changed
+        if identity.email is not None and existing.email != identity.email:
+            existing.email = identity.email
+            await session.flush()
+        await set_current_user(session, existing.id)
+        return existing
     statement = (
         insert(User)
         .values(

@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # Comma-separated list in the environment, e.g. "https://app.example.com,http://localhost:3000".
     frontend_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
+    # How many reverse proxies (Render, Cloudflare...) sit in front of the API. 0 = none: the
+    # X-Forwarded-For is ignored. With N, the client IP is the Nth entry from the RIGHT, the one
+    # added by our own proxy. Entries further left are client-chosen and cannot be trusted.
+    trusted_proxy_hops: int = 0
+
     rate_limit_default: str = "120/minute"
     redis_url: str | None = None  # shared rate-limit storage; in-memory when unset
 
@@ -47,6 +52,7 @@ class Settings(BaseSettings):
     supabase_url: str | None = None  # e.g. https://<project-ref>.supabase.co
     auth_audience: str = "authenticated"
     auth_issuer: str | None = None  # defaults to <supabase_url>/auth/v1
+    auth_allow_anonymous: bool = False  # Supabase anonymous sign-ins (no email); off by default
     auth_jwks_cache_seconds: int = 600  # Supabase advises caching keys no longer than 10 minutes
     auth_clock_skew_seconds: int = 10
 

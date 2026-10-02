@@ -2,11 +2,11 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth.dependencies import get_current_user
+from app.core.auth.dependencies import get_current_user, get_identity
 from app.core.auth.models import User
-from app.core.db import get_session
+from app.core.auth.tokens import VerifiedIdentity
+from app.core.db import SessionDep
 from app.core.pagination import Page, PageParams, SortField, map_page, page_params, sorting
 from app.core.rate_limit import limiter
 from app.core.tenancy import invitations as service
@@ -27,7 +27,7 @@ from app.core.tenancy.schemas import (
 org_router = APIRouter(prefix="/organizations/{org_id}/invitations", tags=["invitations"])
 accept_router = APIRouter(prefix="/invitations", tags=["invitations"])
 
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 
 
 def to_out(invitation: Invitation) -> InvitationOut:
@@ -75,7 +75,7 @@ async def revoke_invitation(
     session: Session,
 ) -> None:
     await service.revoke_invitation(
-        InvitationRepository(session, ctx.organization.id), invitation_id
+        ctx, InvitationRepository(session, ctx.organization.id), invitation_id
     )
 
 
@@ -85,10 +85,11 @@ async def accept_invitation(
     request: Request,
     body: InvitationAccept,
     user: Annotated[User, Depends(get_current_user)],
+    identity: Annotated[VerifiedIdentity, Depends(get_identity)],
     session: Session,
 ) -> InvitationAccepted:
     """Join an organization with an invitation token. Needs a login whose email matches."""
-    organization, role = await service.accept_invitation(session, user, body.token)
+    organization, role = await service.accept_invitation(session, user, identity.email, body.token)
     return InvitationAccepted(
         organization=OrganizationOut.model_validate(organization), role=RoleRef.model_validate(role)
     )

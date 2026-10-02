@@ -13,11 +13,10 @@ from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.models import User
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.db.tenant_context import set_current_organization
 from app.core.errors import NotFoundError, PermissionDeniedError
 from app.core.tenancy.models import Membership, Organization, Role
@@ -49,9 +48,10 @@ class OrgContext:
 async def get_org_context(
     org_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
 ) -> OrgContext:
-    await set_current_organization(session, org_id)
+    # A user may always read their OWN membership rows (row-level security), so membership is
+    # proven first; only then is the organization context handed to the database.
     membership = (
         await session.scalars(
             select(Membership).where(
@@ -61,6 +61,7 @@ async def get_org_context(
     ).first()
     if membership is None:
         raise NotFoundError("Organization not found.")
+    await set_current_organization(session, org_id)
     organization = await session.get_one(
         Organization, org_id
     )  # exists: the membership points at it
@@ -68,6 +69,8 @@ async def get_org_context(
 
 
 def require_permission(*required: str) -> Callable[..., Awaitable[OrgContext]]:
+    if not required:
+        raise ValueError("require_permission needs at least one permission")
     registered_permissions.update(required)
 
     async def dependency(ctx: Annotated[OrgContext, Depends(get_org_context)]) -> OrgContext:
@@ -75,6 +78,7 @@ def require_permission(*required: str) -> Callable[..., Awaitable[OrgContext]]:
             raise PermissionDeniedError("You do not have permission to do this.")
         return ctx
 
+    dependency.required_permissions = frozenset(required)  # type: ignore[attr-defined]
     return dependency
 
 

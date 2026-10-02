@@ -15,6 +15,7 @@ db-down:
 
 db-migrate: db-up
 	cd apps/api && uv run alembic upgrade head
+	@PGPASSWORD=factory psql -q -h localhost -U factory -d factory -c "REVOKE ALL ON alembic_version FROM factory_app" >/dev/null 2>&1 || true
 
 # Usage: make db-revision m="add invoices table"   (review the generated file before committing)
 db-revision: db-up

@@ -50,11 +50,13 @@ class JwtVerifier:
         audience: str,
         issuer: str | None,
         leeway_seconds: int = 10,
+        allow_anonymous: bool = False,
     ) -> None:
         self._signing_key_for = signing_key_for
         self._audience = audience
         self._issuer = issuer
         self._leeway = leeway_seconds
+        self._allow_anonymous = allow_anonymous
 
     async def verify(self, token: str) -> VerifiedIdentity:
         try:
@@ -74,11 +76,24 @@ class JwtVerifier:
         except jwt.PyJWTError as exc:
             raise UnauthenticatedError("Invalid or expired login token.") from exc
 
+        if claims.get("is_anonymous") is True and not self._allow_anonymous:
+            raise UnauthenticatedError("Anonymous sessions are not accepted.")
         email = claims.get("email")
+        if _marked_unverified(claims):
+            email = None  # never match invitations against an unconfirmed address
         return VerifiedIdentity(
             subject=str(claims["sub"]),
             email=email.strip().lower() if isinstance(email, str) and email.strip() else None,
         )
+
+
+def _marked_unverified(claims: dict[str, Any]) -> bool:
+    """True only when the provider explicitly says the email is unconfirmed (field names to be
+    confirmed against a real Supabase token; absent means we cannot tell, so we trust the project's
+    'confirm email' setting, which docs/NEW_PRODUCT_SETUP.md requires)."""
+    metadata = claims.get("user_metadata")
+    nested = metadata.get("email_verified") if isinstance(metadata, dict) else None
+    return claims.get("email_verified") is False or nested is False
 
 
 def build_verifier(settings: Settings) -> TokenVerifier | None:
@@ -96,4 +111,5 @@ def build_verifier(settings: Settings) -> TokenVerifier | None:
         audience=settings.auth_audience,
         issuer=settings.auth_issuer_url,
         leeway_seconds=settings.auth_clock_skew_seconds,
+        allow_anonymous=settings.auth_allow_anonymous,
     )

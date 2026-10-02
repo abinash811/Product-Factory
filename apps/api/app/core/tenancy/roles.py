@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import func, select
 
-from app.core.errors import BadRequestError, ConflictError, PermissionDeniedError
+from app.core.errors import BadRequestError, ConflictError, NotFoundError, PermissionDeniedError
 from app.core.pagination import PageData, PageParams, SortField
 from app.core.tenancy.context import OrgContext
 from app.core.tenancy.models import Invitation, Membership, Role
@@ -27,6 +27,21 @@ class RoleRepository(TenantRepository[Role]):
             column = getattr(Role, field.field)
             statement = statement.order_by(column.desc() if field.descending else column.asc())
         return await self.paginate(statement.order_by(Role.id), params)
+
+    async def get_shared_or_404(self, role_id: uuid.UUID) -> Role:
+        """Read the role and block its deletion until this request finishes."""
+        statement = self.select().where(Role.id == role_id).with_for_update(read=True)
+        role = (await self.session.scalars(statement)).first()
+        if role is None:
+            raise NotFoundError(self.not_found_message)
+        return role
+
+    async def get_exclusive_or_404(self, role_id: uuid.UUID) -> Role:
+        statement = self.select().where(Role.id == role_id).with_for_update()
+        role = (await self.session.scalars(statement)).first()
+        if role is None:
+            raise NotFoundError(self.not_found_message)
+        return role
 
     async def name_taken(self, name: str, *, excluding: uuid.UUID | None = None) -> bool:
         statement = self.select().where(func.lower(Role.name) == name.lower())
@@ -51,6 +66,10 @@ class RoleRepository(TenantRepository[Role]):
 
 
 def _check_grants(ctx: OrgContext, grants: list[str], catalog: dict[str, str]) -> None:
+    if "*" in grants:
+        raise BadRequestError(
+            "Only the Owner role can hold every permission.", code="invalid_permissions"
+        )
     bad = invalid_grants(grants, catalog)
     if bad:
         raise BadRequestError(f"Unknown permissions: {', '.join(bad)}.", code="invalid_permissions")
@@ -108,7 +127,7 @@ async def update_role(
 
 
 async def delete_role(ctx: OrgContext, repo: RoleRepository, role_id: uuid.UUID) -> None:
-    role = await repo.get_or_404(role_id)
+    role = await repo.get_exclusive_or_404(role_id)  # nobody can start using it meanwhile
     if role.is_system:
         raise ConflictError("Starter roles cannot be deleted.", code="system_role_locked")
     _check_not_above_you(ctx, role)

@@ -12,6 +12,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
     UniqueConstraint,
     false,
@@ -82,6 +83,14 @@ class Invitation(UUIDPrimaryKeyMixin, TimestampMixin, OrganizationOwnedMixin, Ba
 
     __tablename__ = "invitations"
     __table_args__ = (
+        # At most one OPEN invitation per email and organization, even under concurrent requests.
+        Index(
+            "ux_invitations_open_email",
+            "organization_id",
+            "email",
+            unique=True,
+            postgresql_where=text("accepted_at IS NULL"),
+        ),
         # The role must belong to the same organization. Deleting the role removes its old
         # invitations (the service refuses to delete a role that still has PENDING ones).
         ForeignKeyConstraint(

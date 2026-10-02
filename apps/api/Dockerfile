@@ -15,7 +15,7 @@ COPY product ./product
 
 FROM python:3.13-slim
 ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PORT=8000 \
-    PRODUCT_CONFIG_DIR=/app/product
+    PRODUCT_CONFIG_DIR=/app/product TRUSTED_PROXY_HOPS=1
 RUN useradd --system --uid 10001 --no-create-home app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app
@@ -23,5 +23,5 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD python -c "import os,urllib.request;urllib.request.urlopen(f'http://127.0.0.1:{os.environ[\"PORT\"]}/health/live',timeout=2)"
-# --proxy-headers: trust X-Forwarded-For from the host's load balancer so rate limits see real client IPs.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers --forwarded-allow-ips='*'"]
+# Client IPs come from X-Forwarded-For via TRUSTED_PROXY_HOPS (app/core/rate_limit.py), not from uvicorn.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

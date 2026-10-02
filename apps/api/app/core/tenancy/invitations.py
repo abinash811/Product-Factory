@@ -11,7 +11,8 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth.models import User
@@ -78,7 +79,7 @@ async def create_invitation(
     roles: RoleRepository,
     data: InvitationCreate,
 ) -> tuple[Invitation, str]:
-    role = await roles.get_or_404(data.role_id)
+    role = await roles.get_shared_or_404(data.role_id)
     if not covers(ctx.permissions, role.permissions):
         raise PermissionDeniedError(
             "You cannot invite someone into a role more powerful than yours."
@@ -91,28 +92,47 @@ async def create_invitation(
     )
     if already_member:
         raise ConflictError("This person is already a member.", code="already_member")
+    # Expired, unaccepted invitations for this email are dead weight and would block a new one.
+    await repo.session.execute(
+        delete(Invitation).where(
+            Invitation.organization_id == repo.organization_id,
+            Invitation.email == email,
+            Invitation.accepted_at.is_(None),
+            Invitation.expires_at <= func.now(),
+        )
+    )
     if await repo.pending_for_email(email):
         raise ConflictError(
             "A pending invitation for this email exists. Revoke it first.",
             code="invitation_pending",
         )
     token = secrets.token_urlsafe(32)
-    invitation = repo.add(
-        Invitation(
-            email=email,
-            role_id=role.id,
-            token_hash=hash_token(token),
-            expires_at=datetime.now(UTC) + timedelta(days=data.expires_in_days),
-            invited_by_user_id=ctx.user.id,
-        )
+    invitation = Invitation(
+        email=email,
+        role_id=role.id,
+        token_hash=hash_token(token),
+        expires_at=datetime.now(UTC) + timedelta(days=data.expires_in_days),
+        invited_by_user_id=ctx.user.id,
     )
-    await repo.session.flush()
+    try:
+        async with repo.session.begin_nested():
+            repo.add(invitation)
+            await repo.session.flush()
+    except IntegrityError as exc:  # a concurrent request invited the same email first
+        raise ConflictError(
+            "A pending invitation for this email exists. Revoke it first.",
+            code="invitation_pending",
+        ) from exc
     await repo.session.refresh(invitation)
     return invitation, token
 
 
-async def revoke_invitation(repo: InvitationRepository, invitation_id: uuid.UUID) -> None:
+async def revoke_invitation(
+    ctx: OrgContext, repo: InvitationRepository, invitation_id: uuid.UUID
+) -> None:
     invitation = await repo.get_or_404(invitation_id)
+    if not covers(ctx.permissions, invitation.role.permissions):
+        raise PermissionDeniedError("You cannot revoke an invitation more powerful than your role.")
     if invitation.accepted_at is not None:
         raise ConflictError("This invitation was already accepted.", code="invitation_accepted")
     await repo.delete(invitation)
@@ -120,7 +140,7 @@ async def revoke_invitation(repo: InvitationRepository, invitation_id: uuid.UUID
 
 
 async def accept_invitation(
-    session: AsyncSession, user: User, token: str
+    session: AsyncSession, user: User, verified_email: str | None, token: str
 ) -> tuple[Organization, Role]:
     """Join the organization the token belongs to. Atomic: two accepts cannot both win."""
     await set_current_invite_hash(session, hash_token(token))
@@ -142,7 +162,8 @@ async def accept_invitation(
         or invitation.expires_at <= datetime.now(UTC)
     ):
         raise NotFoundError("This invitation is invalid or has expired.")
-    if not user.email or user.email != invitation.email:
+    # Compare with the email in THIS login's verified token, not the one stored from earlier logins.
+    if not verified_email or verified_email != invitation.email:
         raise PermissionDeniedError(
             "This invitation was sent to a different email address.",
             code="invitation_email_mismatch",
