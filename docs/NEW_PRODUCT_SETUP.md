@@ -40,3 +40,15 @@ role's connection string in `DATABASE_URL`.
 - **First-product smoke test (do this once, with a real token):** sign in, call `GET /api/v1/me`, and confirm it succeeds.
   If it answers 401, compare the token's `iss` and `aud` claims with `AUTH_ISSUER` / `AUTH_AUDIENCE`: the Factory assumes
   issuer `<SUPABASE_URL>/auth/v1` and audience `authenticated`, which could not be verified without a real project.
+
+## Deployment settings that affect security
+
+| Setting | Value | Why |
+|---|---|---|
+| `APP_ENV` | `production` | Turns on strict checks (https-only origins, docs off, security readiness gate) |
+| `TRUSTED_PROXY_HOPS` | `1` on Render (`2` if Cloudflare also proxies the API) | Correct per-client rate limits; a wrong value lets callers fake their address |
+| `DATABASE_URL` | the limited application role | See "Database roles" |
+| `AUTH_ALLOW_ANONYMOUS` | `false` unless the product needs anonymous sessions | Anonymous users have no email and can still create organizations |
+
+After the FIRST migration run, take away the application role's access to migration history:
+`REVOKE ALL ON alembic_version FROM <application role>;` (`make db-migrate` does this for local databases.)
