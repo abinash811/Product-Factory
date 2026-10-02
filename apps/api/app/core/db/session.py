@@ -54,3 +54,12 @@ async def check_database(engine: AsyncEngine) -> bool:
     async with engine.connect() as connection:
         await connection.execute(text("SELECT 1"))
     return True
+
+
+async def check_rls_enforced(engine: AsyncEngine) -> bool:
+    """False when the connected role could ignore row-level security (superuser or BYPASSRLS)."""
+    async with engine.connect() as connection:
+        bypasses = await connection.scalar(
+            text("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user")
+        )
+    return bypasses is False

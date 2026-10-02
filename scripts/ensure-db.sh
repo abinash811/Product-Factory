@@ -34,4 +34,9 @@ for db in "${DATABASES[@]}"; do
     createdb -h localhost -p "$PORT" -U factory "$db"
   fi
 done
+# The limited role the API runs as (so row-level security is really enforced, even locally).
+for db in factory factory_test; do
+  psql -q -h localhost -p "$PORT" -U factory -d "$db" -v ON_ERROR_STOP=1 \
+    -f infra/postgres/app_role.sql >/dev/null
+done
 echo "Postgres ready on localhost:$PORT"
