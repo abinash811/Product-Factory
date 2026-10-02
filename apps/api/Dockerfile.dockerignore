@@ -1,11 +1,15 @@
-.venv
-__pycache__
-.pytest_cache
-.mypy_cache
-.ruff_cache
-.coverage
-htmlcov
-tests
-.env
-.env.*
-!.env.example
+# Build context is the repo root: docker build -f apps/api/Dockerfile .
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+.git
+.github
+docs
+apps/web
+apps/api/tests
+**/.env
+**/.env.*
+!**/.env.example

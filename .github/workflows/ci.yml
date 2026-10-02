@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build API image and check it starts healthy
         run: |
-          docker build -t factory-api:ci apps/api
+          docker build -f apps/api/Dockerfile -t factory-api:ci .
           docker run -d --name api -e PORT=8000 -p 8000:8000 factory-api:ci
           for i in $(seq 1 20); do
             curl -fsS http://localhost:8000/health/live && exit 0

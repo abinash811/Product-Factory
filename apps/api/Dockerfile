@@ -1,17 +1,21 @@
 # syntax=docker/dockerfile:1
+# Build from the REPO ROOT (the image also contains product/ for the role config):
+#   docker build -f apps/api/Dockerfile -t factory-api .
 FROM python:3.13-slim AS builder
 COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 # Dependencies first so this layer is cached until the lockfile changes.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    --mount=type=bind,source=apps/api/uv.lock,target=uv.lock \
+    --mount=type=bind,source=apps/api/pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-dev --no-install-project
-COPY app ./app
+COPY apps/api/app ./app
+COPY product ./product
 
 FROM python:3.13-slim
-ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PORT=8000
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PORT=8000 \
+    PRODUCT_CONFIG_DIR=/app/product
 RUN useradd --system --uid 10001 --no-create-home app
 WORKDIR /app
 COPY --from=builder --chown=app:app /app /app

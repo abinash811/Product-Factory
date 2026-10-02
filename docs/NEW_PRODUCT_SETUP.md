@@ -15,3 +15,18 @@ and give Claude the values only through the secret stores listed. Never paste se
 
 Rules: use a separate project and separate keys for staging and production. Rotate a key immediately if it is ever
 pasted somewhere it should not be. Build steps that need a service list the exact variable names in `apps/api/.env.example`.
+
+## Database roles (important for security)
+
+Use TWO database roles per product:
+
+| Role | Used for | Rules |
+|---|---|---|
+| Owner/admin (for example `postgres`) | Running migrations (`MIGRATION_DATABASE_URL`) | Never used by the running API |
+| Application role (for example `factory_app`) | The running API (`DATABASE_URL`) | Not a superuser and **no BYPASSRLS** |
+
+Row-level security (the database's own tenant lock) is ignored by superusers and by roles with BYPASSRLS, so the
+API must not connect as one. In production the API's readiness check fails if it does, and the deploy will not go live.
+Create the application role once with `infra/postgres/app_role.sql` (change the role name and password, and the
+role named in `ALTER DEFAULT PRIVILEGES FOR ROLE ...` to your migration/owner role), then put the application
+role's connection string in `DATABASE_URL`.

@@ -7,7 +7,12 @@ description: How to add or change database tables, models and migrations. Use wh
 Decisions and reasons: `docs/adr/0003-database-conventions.md`. Code: `apps/api/app/core/db/`.
 
 - New model: inherit `Base` plus `UUIDPrimaryKeyMixin` and `TimestampMixin`. Import the model module in `apps/api/migrations/env.py` so autogenerate sees it.
-- Tenant-owned tables also need `organization_id` and go through the tenant-scoped repository (added in build step 3).
+- Tenant-owned table checklist (all four, no exceptions):
+  1. Model uses `OrganizationOwnedMixin` (`app/core/tenancy/models.py`).
+  2. Add its models module to `app/core/db/registry.py`.
+  3. In its migration, turn on row-level security: `for s in enable_tenant_isolation("table"): op.execute(s)` (`app/core/db/rls.py`).
+  4. Access it only through a `TenantRepository` subclass; a test in `tests/test_tenant_isolation.py` must try to read and write it from another organization.
+  `tests/test_row_level_security.py` fails if a table with `organization_id` has no forced row-level security.
 - Change the schema ONLY through a migration: `make db-revision m="short description"`, then read the generated file. Autogenerate misses renames, data changes and some defaults, so fix those by hand.
 - Never edit a migration that already exists (a hook blocks it). Write a new one to correct it.
 - Migrations must work forward and backward (`downgrade`) and on a non-empty database. Backfill data explicitly; add NOT NULL columns in steps (nullable → backfill → NOT NULL).

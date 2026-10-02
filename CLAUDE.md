@@ -29,7 +29,7 @@ When a bug appears, use the `debug-root-cause` skill: reproduce, find the cause,
 - Max 300 lines per file (enforced by `scripts/check-file-length.sh`). Split by responsibility, not arbitrarily.
 - Backend: routes are thin → services hold business logic → repositories talk to the database. Python typed everywhere (mypy strict), Ruff clean, Pydantic at every boundary.
 - Frontend: TypeScript strict, no `any`. Server data via TanStack Query, never Zustand. Forms via React Hook Form + Zod. API client is generated from OpenAPI, never hand-written.
-- Every tenant-owned table has `organization_id`, and every query goes through the tenant-scoped repository. No exceptions, and each new tenant table must be covered by the isolation test.
+- Every tenant-owned table has `organization_id`, row-level security (`enable_tenant_isolation`), and every query goes through a `TenantRepository`. No exceptions; each new tenant table must be covered by `tests/test_tenant_isolation.py`. Follow `database-conventions`.
 - Every new route declares its permission explicitly. Default is protected.
 - Never a raw stack trace or internal message to the client; use the standard error shape.
 - No secrets in code, logs or commits. Variable NAMES go in `.env.example`; values live in host secret stores.
