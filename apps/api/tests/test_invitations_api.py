@@ -105,6 +105,13 @@ def test_a_login_without_an_email_cannot_accept(client: TestClient) -> None:
     assert s.accept(token, no_email).status_code == 403
 
 
+def test_an_unverified_email_cannot_be_used_to_accept(client: TestClient) -> None:
+    s = Setup(client)
+    token = s.invite().json()["token"]
+    unverified = auth_header(make_token("bob", "bob@example.com", extra={"email_verified": False}))
+    assert s.accept(token, unverified).status_code == 403
+
+
 def test_emails_are_matched_ignoring_case(client: TestClient) -> None:
     s = Setup(client)
     created = s.invite(email="Bob@Example.COM")
@@ -129,6 +136,9 @@ def test_expired_invitations_cannot_be_accepted_and_show_as_expired(client: Test
     assert client.get(f"{s.url}?status=expired", headers=s.alice).json()["total"] == 1
     assert client.get(f"{s.url}?status=pending", headers=s.alice).json()["total"] == 0
     assert s.invite().status_code == 201  # an expired invitation does not block a fresh one
+    assert (
+        client.get(f"{s.url}?status=expired", headers=s.alice).json()["total"] == 0
+    )  # and is cleaned up
 
 
 @pytest.mark.parametrize("days", [0, 31])
@@ -163,6 +173,14 @@ def test_revoked_invitations_stop_working_and_accepted_ones_cannot_be_revoked(
     blocked = client.delete(f"{s.url}/{again['id']}", headers=s.alice)
     assert blocked.status_code == 409 and blocked.json()["error"]["code"] == "invitation_accepted"
     assert client.delete(f"{s.url}/{uuid.uuid4()}", headers=s.alice).status_code == 404
+
+
+def test_admins_cannot_revoke_an_invitation_into_a_role_above_theirs(client: TestClient) -> None:
+    s = Setup(client)
+    owner_invite = s.invite(role="owner").json()
+    url = f"{s.url}/{owner_invite['id']}"
+    assert client.delete(url, headers=s.adam).status_code == 403
+    assert client.delete(url, headers=s.alice).status_code == 204
 
 
 def test_who_may_invite_whom(client: TestClient) -> None:

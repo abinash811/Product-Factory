@@ -9,6 +9,7 @@ from tests.auth_helpers import (
     AUDIENCE,
     ISSUER,
     OTHER_KEY,
+    SIGNING_KEY,
     build_test_verifier,
     hs256_signed_with_public_key,
     make_token,
@@ -71,6 +72,33 @@ async def test_key_server_outage_is_503_not_a_logout() -> None:
     with pytest.raises(AuthUnavailableError) as caught:
         await verifier.verify(make_token())
     assert caught.value.status_code == 503
+
+
+@pytest.mark.parametrize(
+    ("claims", "expected"),
+    [
+        ({"email_verified": False}, None),
+        ({"user_metadata": {"email_verified": False}}, None),
+        ({"email_verified": True}, "person@example.com"),
+        ({"user_metadata": {"email_verified": True}}, "person@example.com"),
+        ({}, "person@example.com"),  # no information: trust the project's confirm-email setting
+    ],
+)
+async def test_an_email_the_provider_marks_unverified_is_not_trusted(
+    claims: dict[str, object], expected: str | None
+) -> None:
+    identity = await build_test_verifier().verify(make_token(extra=claims))
+    assert identity.email == expected
+
+
+async def test_anonymous_sessions_are_rejected_unless_allowed() -> None:
+    token = make_token(email=None, extra={"is_anonymous": True})
+    with pytest.raises(UnauthenticatedError, match="Anonymous"):
+        await build_test_verifier().verify(token)
+    allowed = JwtVerifier(
+        lambda _t: SIGNING_KEY.public_key(), audience=AUDIENCE, issuer=ISSUER, allow_anonymous=True
+    )
+    assert (await allowed.verify(token)).email is None
 
 
 def test_verifier_is_only_built_when_login_is_configured() -> None:

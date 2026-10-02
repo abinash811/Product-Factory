@@ -3,23 +3,22 @@
 import asyncio
 import uuid
 from collections.abc import Iterator
-from typing import Annotated
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.errors import ConflictError
 from tests.conftest import TEST_DATABASE_URL
 from tests.db_models import ScratchBase, Widget
 
 router = APIRouter(prefix="/_d")
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 
 
 class WidgetOut(BaseModel):
@@ -96,6 +95,19 @@ def test_successful_request_is_committed(widgets_client: TestClient) -> None:
 def test_failed_request_is_rolled_back(widgets_client: TestClient) -> None:
     response = widgets_client.post("/_d/widgets-then-fail", params={"name": "lost"})
     assert response.status_code == 409
+    assert widgets_client.get("/_d/count").json() == 0
+
+
+def test_a_failed_commit_is_an_error_not_a_success(
+    widgets_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def broken_commit(self: AsyncSession) -> None:
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(AsyncSession, "commit", broken_commit)
+    response = widgets_client.post("/_d/widgets", params={"name": "doomed"})
+    assert response.status_code == 500  # the client must never be told 'created' when it was not
+    monkeypatch.undo()
     assert widgets_client.get("/_d/count").json() == 0
 
 

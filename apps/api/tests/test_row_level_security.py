@@ -168,6 +168,22 @@ def test_production_readiness_fails_if_the_database_role_could_bypass_security()
     assert response.json()["checks"]["row_level_security"] == "fail"
 
 
+def test_readiness_checks_security_whenever_login_is_configured_even_without_app_env() -> None:
+    """A deploy that forgot APP_ENV=production must still not go live with a powerful role."""
+    with TestClient(create_app(make_settings(database_url=TEST_DATABASE_URL))) as client:
+        response = client.get("/health/ready")
+    assert response.status_code == 503
+    assert response.json()["checks"]["row_level_security"] == "fail"
+
+
+def test_the_app_role_cannot_tamper_with_migration_history() -> None:
+    with (
+        psycopg.connect(PLAIN["app"]) as connection,
+        pytest.raises(psycopg.errors.InsufficientPrivilege),
+    ):
+        connection.execute("UPDATE alembic_version SET version_num = 'tampered'")
+
+
 def test_production_readiness_passes_with_the_limited_role() -> None:
     with _production(TEST_APP_DATABASE_URL) as client:
         response = client.get("/health/ready")

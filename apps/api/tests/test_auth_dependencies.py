@@ -1,5 +1,6 @@
 from typing import Annotated
 
+import psycopg
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from app.core.auth.models import User
 from app.core.auth.tokens import VerifiedIdentity
 from app.main import create_app
 from tests.auth_helpers import auth_header, make_token
-from tests.conftest import make_settings
+from tests.conftest import TEST_DATABASE_URL, make_settings
 
 pytestmark = pytest.mark.usefixtures("clean_db")
 router = APIRouter(prefix="/_a")
@@ -53,6 +54,19 @@ def test_first_login_creates_our_own_user_and_later_logins_reuse_it(client: Test
     other = client.get("/_a/me", headers=auth_header(make_token("sub-2", "b@example.com"))).json()
     assert first["id"] == second["id"]
     assert first["id"] != other["id"]
+
+
+def test_returning_users_cause_no_database_write(client: TestClient) -> None:
+    headers = auth_header(make_token("sub-1", "a@example.com"))
+    client.get("/_a/me", headers=headers)
+    plain = TEST_DATABASE_URL.replace("+psycopg", "")
+    with psycopg.connect(plain) as connection:
+        before = connection.execute("SELECT updated_at, xmin::text FROM users").fetchall()
+    for _ in range(3):
+        client.get("/_a/me", headers=headers)
+    with psycopg.connect(plain) as connection:
+        after = connection.execute("SELECT updated_at, xmin::text FROM users").fetchall()
+    assert before == after  # same row version: nothing was written
 
 
 def test_email_changes_at_the_provider_are_picked_up(client: TestClient) -> None:

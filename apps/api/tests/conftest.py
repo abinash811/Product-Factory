@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
@@ -57,6 +58,9 @@ def migrated_test_database() -> None:
     cfg.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
     cfg.attributes["configure_logger"] = False
     command.upgrade(cfg, "head")
+    # The API's role must not be able to rewrite migration history.
+    with psycopg.connect(TEST_DATABASE_URL.replace("+psycopg", ""), autocommit=True) as connection:
+        connection.execute("REVOKE ALL ON alembic_version FROM factory_app")
 
 
 def _truncate_all_tables() -> None:
@@ -76,6 +80,32 @@ def clean_db() -> Iterator[None]:
 @pytest.fixture
 def app() -> FastAPI:
     return create_app(make_settings(), token_verifier=build_test_verifier())
+
+
+BILLING_CONFIG = {
+    "permissions": [{"name": "billing:manage", "description": "Manage billing"}],
+    "default_roles": [
+        {"key": "owner", "name": "Owner", "permissions": ["*"]},
+        {
+            "key": "admin",
+            "name": "Admin",
+            "permissions": ["organization:*", "members:*", "roles:*", "invitations:*"],
+        },
+        {"key": "viewer", "name": "Viewer", "permissions": ["organization:read"]},
+        {"key": "accountant", "name": "Accountant", "permissions": ["billing:manage"]},
+    ],
+}
+
+
+@pytest.fixture
+def billing_client(tmp_path: Path) -> Iterator[TestClient]:
+    """A product where an Accountant role holds a permission (billing) that Admins do not."""
+    (tmp_path / "roles.config.json").write_text(json.dumps(BILLING_CONFIG))
+    settings = make_settings(product_config_dir=str(tmp_path))
+    limiter.reset()
+    app = create_app(settings, token_verifier=build_test_verifier())
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
 
 
 @pytest.fixture

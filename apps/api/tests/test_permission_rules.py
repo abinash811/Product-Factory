@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from app.core.tenancy.context import check_registered_permissions
+from app.core.tenancy.context import check_registered_permissions, require_permission
 from app.core.tenancy.permissions import covers, grant_matches, has_permission, invalid_grants
 from app.core.tenancy.product_config import load_product_roles
 
@@ -91,8 +91,15 @@ def test_product_can_add_its_own_permissions(tmp_path: Path) -> None:
         {"default_roles": [{**OWNER, "permissions": ["members:read"]}]},
         {"default_roles": [OWNER, {"key": "x", "name": "X", "permissions": ["typo:thing"]}]},
         {"default_roles": [OWNER, OWNER]},
+        {"default_roles": [OWNER, {"key": "boss", "name": "Boss", "permissions": ["*"]}]},
     ],
-    ids=["no owner", "owner not everything", "unknown permission", "duplicate key"],
+    ids=[
+        "no owner",
+        "owner not everything",
+        "unknown permission",
+        "duplicate key",
+        "wildcard outside owner",
+    ],
 )
 def test_bad_product_config_stops_startup(tmp_path: Path, data: dict[str, object]) -> None:
     with pytest.raises(RuntimeError, match="product role config"):
@@ -105,6 +112,11 @@ def test_missing_or_broken_config_file_stops_startup(tmp_path: Path) -> None:
     (tmp_path / "roles.config.json").write_text("{not json")
     with pytest.raises(RuntimeError):
         load_product_roles(tmp_path)
+
+
+def test_a_route_must_name_at_least_one_permission() -> None:
+    with pytest.raises(ValueError, match="at least one permission"):
+        require_permission()
 
 
 def test_route_permissions_missing_from_catalog_are_caught_at_startup() -> None:

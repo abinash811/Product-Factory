@@ -32,6 +32,7 @@ def make_token(
     iss: str = ISSUER,
     expires_in: int = 3600,
     omit: Iterable[str] = (),
+    extra: dict[str, Any] | None = None,
 ) -> str:
     now = int(time.time())
     payload: dict[str, Any] = {
@@ -42,6 +43,7 @@ def make_token(
         "iat": now,
         "exp": now + expires_in,
     }
+    payload.update(extra or {})
     for name in omit:
         payload.pop(name, None)
     return jwt.encode(payload, key, algorithm=alg, headers={"kid": "test-key"})
