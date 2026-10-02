@@ -1,4 +1,4 @@
 from app.core.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.core.db.session import get_session
+from app.core.db.session import SessionDep, get_session
 
-__all__ = ["Base", "TimestampMixin", "UUIDPrimaryKeyMixin", "get_session"]
+__all__ = ["Base", "SessionDep", "TimestampMixin", "UUIDPrimaryKeyMixin", "get_session"]

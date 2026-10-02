@@ -5,9 +5,9 @@ so a half-finished request can never leave half-saved data.
 """
 
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Request
+from fastapi import Depends, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -39,7 +39,7 @@ def build_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSessio
 
 
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
-    """FastAPI dependency: `session: Annotated[AsyncSession, Depends(get_session)]`."""
+    """Per-request session. Use it ONLY through `SessionDep` (below)."""
     factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
     async with factory() as session:
         try:
@@ -48,6 +48,12 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
         except BaseException:
             await session.rollback()
             raise
+
+
+# IMPORTANT: scope="function" makes FastAPI finish the session (commit or roll back) BEFORE the
+# response is sent. With the default scope the commit would run after the client already received
+# "success", so a failed commit would be reported as success. Every use must go through this alias.
+SessionDep = Annotated[AsyncSession, Depends(get_session, scope="function")]
 
 
 async def check_database(engine: AsyncEngine) -> bool:

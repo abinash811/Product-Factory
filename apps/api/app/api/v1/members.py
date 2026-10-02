@@ -2,9 +2,8 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.pagination import Page, PageParams, SortField, map_page, page_params, sorting
 from app.core.tenancy import members as service
 from app.core.tenancy.context import OrgContext, get_org_context, require_permission
@@ -15,7 +14,7 @@ from app.core.tenancy.schemas import MemberOut, MemberUpdate, RoleRef
 
 router = APIRouter(prefix="/organizations/{org_id}/members", tags=["members"])
 
-Session = Annotated[AsyncSession, Depends(get_session)]
+Session = SessionDep
 
 
 def to_out(membership: Membership) -> MemberOut:

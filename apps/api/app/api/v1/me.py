@@ -2,11 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.models import User
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.tenancy.models import Membership, Organization
 from app.core.tenancy.schemas import MeOrganization, MeOut, RoleRef
 
@@ -16,7 +15,7 @@ router = APIRouter(tags=["me"])
 @router.get("/me")
 async def get_me(
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
 ) -> MeOut:
     """The signed-in user and every organization they belong to, with their role in each."""
     statement = (

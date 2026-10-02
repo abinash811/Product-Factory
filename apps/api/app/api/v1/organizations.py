@@ -1,11 +1,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth.dependencies import get_current_user
 from app.core.auth.models import User
-from app.core.db import get_session
+from app.core.db import SessionDep
 from app.core.rate_limit import limiter
 from app.core.tenancy.context import OrgContext, require_permission
 from app.core.tenancy.organizations import create_organization
@@ -20,7 +19,7 @@ async def create(
     request: Request,
     body: OrganizationCreate,
     user: Annotated[User, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
 ) -> OrganizationOut:
     """Create an organization. The caller becomes its Owner."""
     organization = await create_organization(
@@ -40,7 +39,7 @@ async def read(
 async def update(
     body: OrganizationUpdate,
     ctx: Annotated[OrgContext, Depends(require_permission("organization:update"))],
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessionDep,
 ) -> OrganizationOut:
     ctx.organization.name = body.name
     await session.flush()
