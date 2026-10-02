@@ -9,8 +9,14 @@ os.environ.setdefault("RATE_LIMIT_DEFAULT", "1000/minute")
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+psycopg://factory:factory@localhost:5432/factory_test"
 )
+# The API under test connects as a LIMITED role (no superuser, no BYPASSRLS), exactly like
+# production, so row-level security is really enforced. Helpers and setup use the admin URL above.
+TEST_APP_DATABASE_URL = os.environ.get(
+    "TEST_APP_DATABASE_URL",
+    "postgresql+psycopg://factory_app:factory_app@localhost:5432/factory_test",
+)
 # Tests must NEVER touch a real database, even if a developer has DATABASE_URL exported.
-os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ["DATABASE_URL"] = TEST_APP_DATABASE_URL
 os.environ.pop("MIGRATION_DATABASE_URL", None)
 
 import psycopg  # noqa: E402
@@ -36,7 +42,7 @@ API_ROOT = Path(__file__).resolve().parents[1]
 def make_settings(**overrides: Any) -> Settings:
     values: dict[str, Any] = {
         "app_env": "test",
-        "database_url": TEST_DATABASE_URL,
+        "database_url": TEST_APP_DATABASE_URL,
         "supabase_url": SUPABASE_URL,
         **overrides,
     }

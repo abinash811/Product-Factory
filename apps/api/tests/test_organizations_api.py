@@ -99,3 +99,44 @@ def test_permission_catalog_is_available_to_signed_in_users(client: TestClient) 
 def test_a_malformed_organization_id_is_a_validation_error(client: TestClient) -> None:
     headers = auth_header(make_token("alice"))
     assert client.get(f"{API}/organizations/not-a-uuid", headers=headers).status_code == 422
+
+
+def test_a_chosen_slug_that_is_taken_is_a_clear_conflict_and_leaves_nothing_behind(
+    client: TestClient,
+) -> None:
+    alice, bob = login(client, "alice"), login(client, "bob")
+    client.post(f"{API}/organizations", json={"name": "Foo", "slug": "my-org"}, headers=alice)
+    taken = client.post(
+        f"{API}/organizations", json={"name": "Other", "slug": "my-org"}, headers=bob
+    )
+    assert taken.status_code == 409
+    assert taken.json()["error"]["code"] == "slug_taken"
+    # The failed attempt must not leave a half-created organization behind for Bob.
+    assert client.get(f"{API}/me", headers=bob).json()["organizations"] == []
+
+
+def test_giving_up_after_repeated_slug_clashes_is_a_clear_conflict(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alice = login(client, "alice")
+    create_org(client, alice, "Same Name")
+    create_org(client, alice, "Same Name")  # takes the one suffix we are about to force
+    monkeypatch.setattr("app.core.tenancy.organizations.secrets.token_hex", lambda _n: "abcdef")
+    create_org(client, alice, "Same Name")  # first forced suffix is free
+    crowded = client.post(f"{API}/organizations", json={"name": "Same Name"}, headers=alice)
+    assert crowded.status_code == 409
+    assert crowded.json()["error"]["code"] == "slug_taken"
+
+
+def test_an_unrelated_database_error_is_not_mistaken_for_a_slug_clash(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    alice = login(client, "alice")
+    fixed = uuid.uuid4()
+    monkeypatch.setattr("app.core.tenancy.organizations.uuid.uuid4", lambda: fixed)
+    create_org(client, alice, "First")
+    clash = client.post(f"{API}/organizations", json={"name": "Second"}, headers=alice)
+    assert clash.status_code == 500  # an id clash is a bug, reported as one, never hidden
+    assert clash.json()["error"]["code"] == "internal_error"
+    monkeypatch.undo()
+    assert len(client.get(f"{API}/me", headers=alice).json()["organizations"]) == 1
