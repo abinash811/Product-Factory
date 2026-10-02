@@ -1,6 +1,7 @@
 """The database-side lock. These tests bypass the API and the repository entirely: raw SQL, as the
 limited role the API connects as. Even a coding mistake must not be able to cross organizations."""
 
+import hashlib
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -37,7 +38,7 @@ class Tenants:
 
 @contextmanager
 def app_session(
-    org: str | None = None, user: str | None = None
+    org: str | None = None, user: str | None = None, invite_hash: str | None = None
 ) -> Iterator[psycopg.Cursor[tuple[object, ...]]]:
     """A transaction as the limited role, with the same per-request context the API sets."""
     with psycopg.connect(PLAIN["app"]) as connection, connection.cursor() as cursor:
@@ -45,6 +46,8 @@ def app_session(
             cursor.execute("SELECT set_config('app.current_org', %s, true)", (org,))
         if user:
             cursor.execute("SELECT set_config('app.current_user_id', %s, true)", (user,))
+        if invite_hash:
+            cursor.execute("SELECT set_config('app.current_invite_hash', %s, true)", (invite_hash,))
         yield cursor
         connection.rollback()  # nothing these tests do may persist
 
@@ -200,5 +203,50 @@ def test_cannot_create_organizations_or_memberships_outside_the_current_context(
         cursor.execute(
             "INSERT INTO memberships (organization_id, user_id, role_id) "
             "SELECT %s, id, %s FROM users LIMIT 1",
+            (t.b, t.b_roles["viewer"]["id"]),
+        )
+
+
+def _invite(client: TestClient, org: str, owner: dict[str, str], role_id: str, email: str) -> str:
+    response = client.post(
+        f"/api/v1/organizations/{org}/invitations",
+        json={"email": email, "role_id": role_id},
+        headers=owner,
+    )
+    assert response.status_code == 201, response.text
+    return str(response.json()["token"])
+
+
+def test_invitations_are_visible_only_in_their_organization_or_with_their_secret(
+    client: TestClient,
+) -> None:
+    t = Tenants(client)
+    alice, bob = login(client, "alice"), login(client, "bob")
+    a_roles = roles_by_key(client, alice, t.a)
+    token_a = _invite(client, t.a, alice, a_roles["viewer"]["id"], "x@example.com")
+    _invite(client, t.b, bob, t.b_roles["viewer"]["id"], "y@example.com")
+    hash_a = hashlib.sha256(token_a.encode()).hexdigest()
+
+    with app_session() as cursor:
+        assert count(cursor, "invitations") == 0
+    with app_session(org=t.a) as cursor:
+        assert count(cursor, "invitations") == 1
+        assert count(cursor, "invitations", f"organization_id = '{t.b}'") == 0
+    with app_session(invite_hash=hash_a) as cursor:  # holding the secret, no organization chosen
+        assert count(cursor, "invitations") == 1
+        assert cursor.execute("UPDATE invitations SET accepted_at = now()").rowcount == 1
+        assert (
+            cursor.execute("DELETE FROM invitations").rowcount == 0
+        )  # a token holder cannot delete
+    with app_session(invite_hash="0" * 64) as cursor:  # a wrong secret shows nothing
+        assert count(cursor, "invitations") == 0
+
+
+def test_invitations_cannot_be_written_into_another_organization(client: TestClient) -> None:
+    t = Tenants(client)
+    with app_session(org=t.a) as cursor, pytest.raises(psycopg.errors.InsufficientPrivilege):
+        cursor.execute(
+            "INSERT INTO invitations (organization_id, email, role_id, token_hash, expires_at) "
+            "VALUES (%s, 'z@example.com', %s, 'abc', now() + interval '1 day')",
             (t.b, t.b_roles["viewer"]["id"]),
         )

@@ -113,3 +113,29 @@ def test_the_database_itself_refuses_a_role_from_another_organization(client: Te
             "UPDATE memberships SET role_id = %s WHERE id = %s",
             (t.b_roles["viewer"]["id"], t.a_members["alice@example.com"]["id"]),
         )
+
+
+def test_invitations_never_cross_organizations(client: TestClient) -> None:
+    t = TwoTenants(client)
+    b_invites = f"{API}/organizations/{t.b}/invitations"
+    made = client.post(
+        b_invites,
+        json={"email": "x@example.com", "role_id": t.b_roles["viewer"]["id"]},
+        headers=t.bob,
+    )
+    assert made.status_code == 201
+    # Alice cannot reach Beta's invitations through Beta's URL...
+    assert client.get(b_invites, headers=t.alice).status_code == 404
+    forged = {"email": "y@example.com", "role_id": t.b_roles["viewer"]["id"]}
+    assert client.post(b_invites, json=forged, headers=t.alice).status_code == 404
+    # ...nor use Beta's ids inside her own organization.
+    a_invites = f"{API}/organizations/{t.a}/invitations"
+    assert client.delete(f"{a_invites}/{made.json()['id']}", headers=t.alice).status_code == 404
+    assert client.post(a_invites, json=forged, headers=t.alice).status_code == 404  # B's role
+    # Beta's invitation is untouched and its token still works for its invitee.
+    assert client.get(b_invites, headers=t.bob).json()["total"] == 1
+    xavier = login(client, "xavier", "x@example.com")
+    accepted = client.post(
+        f"{API}/invitations/accept", json={"token": made.json()["token"]}, headers=xavier
+    )
+    assert accepted.status_code == 200 and accepted.json()["organization"]["id"] == t.b
