@@ -85,7 +85,9 @@ def _response(
     body = ErrorResponse(
         error=ErrorBody(code=code, message=message, request_id=request_id, details=details)
     )
-    headers = {"X-Request-ID": request_id} if request_id else None
+    headers = {"X-Request-ID": request_id} if request_id else {}
+    if status_code == 401:
+        headers["WWW-Authenticate"] = "Bearer"
     return JSONResponse(
         body.model_dump(exclude_none=True), status_code=status_code, headers=headers
     )

@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     # Set true when DATABASE_URL points at a transaction pooler (Supabase port 6543 / pgbouncer).
     db_pooler: bool = False
 
+    # Login (Supabase Auth). Unset = login not configured (protected routes answer 503).
+    supabase_url: str | None = None  # e.g. https://<project-ref>.supabase.co
+    auth_audience: str = "authenticated"
+    auth_issuer: str | None = None  # defaults to <supabase_url>/auth/v1
+    auth_jwks_cache_seconds: int = 600  # Supabase advises caching keys no longer than 10 minutes
+    auth_clock_skew_seconds: int = 10
+
     @field_validator("database_url", "migration_database_url", mode="after")
     @classmethod
     def _use_psycopg_driver(cls, value: SecretStr | None) -> SecretStr | None:
@@ -63,6 +70,8 @@ class Settings(BaseSettings):
         if self.app_env == "production":
             if "database_url" not in self.model_fields_set:
                 raise ValueError("DATABASE_URL must be set explicitly in production")
+            if not self.supabase_url:
+                raise ValueError("SUPABASE_URL must be set in production")
             if not self.frontend_origins:
                 raise ValueError("FRONTEND_ORIGINS must be set in production")
             bad = [o for o in self.frontend_origins if o == "*" or not o.startswith("https://")]
@@ -77,6 +86,21 @@ class Settings(BaseSettings):
     @property
     def docs_on(self) -> bool:
         return self.docs_enabled if self.docs_enabled is not None else not self.is_production
+
+    @field_validator("supabase_url", mode="after")
+    @classmethod
+    def _strip_slash(cls, value: str | None) -> str | None:
+        return value.rstrip("/") if value else None
+
+    @property
+    def auth_jwks_url(self) -> str | None:
+        return f"{self.supabase_url}/auth/v1/.well-known/jwks.json" if self.supabase_url else None
+
+    @property
+    def auth_issuer_url(self) -> str | None:
+        if self.auth_issuer:
+            return self.auth_issuer
+        return f"{self.supabase_url}/auth/v1" if self.supabase_url else None
 
     @property
     def alembic_database_url(self) -> str:

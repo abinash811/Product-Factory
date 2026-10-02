@@ -14,10 +14,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.core.config import get_settings
+from app.core.db import registry  # noqa: F401  (registers every model)
 from app.core.db.base import Base
-
-# Import every model module here so autogenerate can see its tables, e.g.:
-#   import app.core.tenancy.models
 
 config = context.config
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):

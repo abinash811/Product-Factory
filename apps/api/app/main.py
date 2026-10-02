@@ -7,6 +7,7 @@ from fastapi.routing import APIRoute
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.v1.router import api_router
+from app.core.auth.tokens import TokenVerifier, build_verifier
 from app.core.config import Settings, get_settings
 from app.core.db.session import build_engine, build_session_factory, check_database
 from app.core.errors import register_error_handlers
@@ -23,7 +24,9 @@ def _unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}" if route.tags else route.name
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, token_verifier: TokenVerifier | None = None
+) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, json_logs=settings.json_logs)
 
@@ -45,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.limiter = limiter
+    app.state.token_verifier = token_verifier or build_verifier(settings)
     app.state.engine = engine
     app.state.session_factory = build_session_factory(engine)
     register_readiness_check("database", lambda: check_database(engine))
