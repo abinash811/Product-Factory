@@ -4,4 +4,5 @@ Add one line here whenever a new models module is created. A forgotten line is c
 "models and migrations agree" test, because the table would look like drift.
 """
 
-import app.core.auth.models  # noqa: F401
+import app.core.auth.models
+import app.core.tenancy.models  # noqa: F401

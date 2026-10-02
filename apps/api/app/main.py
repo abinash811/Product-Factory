@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +18,8 @@ from app.core.logging import configure_logging
 from app.core.rate_limit import limiter
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware
 from app.core.security_headers import SecurityHeadersMiddleware
+from app.core.tenancy.context import check_registered_permissions
+from app.core.tenancy.product_config import load_product_roles
 
 
 def _unique_id(route: APIRoute) -> str:
@@ -49,6 +52,8 @@ def create_app(
     )
     app.state.limiter = limiter
     app.state.token_verifier = token_verifier or build_verifier(settings)
+    config_dir = Path(settings.product_config_dir) if settings.product_config_dir else None
+    app.state.product_roles = load_product_roles(config_dir)  # fails fast if the config is wrong
     app.state.engine = engine
     app.state.session_factory = build_session_factory(engine)
     register_readiness_check("database", lambda: check_database(engine))
@@ -71,6 +76,7 @@ def create_app(
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+    check_registered_permissions(app.state.product_roles.catalog)
     return app
 
 

@@ -1,0 +1,30 @@
+{
+  "_comment": "Product-level roles and permissions. 'permissions' lists extra permissions THIS product adds (resource:action) on top of the factory's core ones. 'default_roles' are the starter roles copied into every new organization; organizations can then create custom roles. The 'owner' role must exist and must hold '*'.",
+  "permissions": [],
+  "default_roles": [
+    {
+      "key": "owner",
+      "name": "Owner",
+      "description": "Full control of the organization. Cannot be removed from the last owner.",
+      "permissions": ["*"]
+    },
+    {
+      "key": "admin",
+      "name": "Admin",
+      "description": "Manages members, roles and invitations.",
+      "permissions": ["organization:*", "members:*", "roles:*", "invitations:*"]
+    },
+    {
+      "key": "member",
+      "name": "Member",
+      "description": "Standard access.",
+      "permissions": ["organization:read", "members:read", "roles:read"]
+    },
+    {
+      "key": "viewer",
+      "name": "Viewer",
+      "description": "Read-only access.",
+      "permissions": ["organization:read"]
+    }
+  ]
+}

@@ -8,6 +8,7 @@ Filtering stays explicit per endpoint: declare each allowed filter as its own ty
 
 import math
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Query
@@ -51,6 +52,28 @@ class Page[T](BaseModel):
             page_size=params.page_size,
             pages=pages,
         )
+
+
+@dataclass(frozen=True)
+class PageData[T]:
+    """One page of database rows, as returned by repositories (not an API response)."""
+
+    items: list[T]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+def map_page[A, B](page: PageData[A], convert: Callable[[A], B]) -> Page[B]:
+    """Same page, different item type (for example database rows into response models)."""
+    return Page[B](
+        items=[convert(item) for item in page.items],
+        total=page.total,
+        page=page.page,
+        page_size=page.page_size,
+        pages=page.pages,
+    )
 
 
 class SortField(BaseModel):

@@ -58,3 +58,5 @@ filterwarnings = ["error::DeprecationWarning:app.*"]
 
 [tool.coverage.run]
 branch = true
+# SQLAlchemy's async layer runs inside greenlets and the test client in threads; trace both.
+concurrency = ["greenlet", "thread"]

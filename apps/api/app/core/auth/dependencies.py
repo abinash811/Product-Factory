@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth.models import User
 from app.core.auth.tokens import AuthUnavailableError, TokenVerifier, VerifiedIdentity
 from app.core.db import get_session
+from app.core.db.tenant_context import set_current_user
 from app.core.errors import UnauthenticatedError
 
 bearer_scheme = HTTPBearer(auto_error=False)  # auto_error off: we answer with our standard error
@@ -51,4 +52,6 @@ async def get_current_user(
         .returning(User)
         .execution_options(populate_existing=True)
     )
-    return (await session.scalars(statement)).one()
+    user = (await session.scalars(statement)).one()
+    await set_current_user(session, user.id)
+    return user

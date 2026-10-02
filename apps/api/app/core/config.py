@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Set true when DATABASE_URL points at a transaction pooler (Supabase port 6543 / pgbouncer).
     db_pooler: bool = False
 
+    # Folder holding product/roles.config.json. Default: the repo's product/ folder.
+    product_config_dir: str | None = None
+
     # Login (Supabase Auth). Unset = login not configured (protected routes answer 503).
     supabase_url: str | None = None  # e.g. https://<project-ref>.supabase.co
     auth_audience: str = "authenticated"
