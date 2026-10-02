@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from app.core.errors import BadRequestError, ConflictError, PermissionDeniedError
 from app.core.pagination import PageData, PageParams, SortField
 from app.core.tenancy.context import OrgContext
-from app.core.tenancy.models import Membership, Role
+from app.core.tenancy.models import Invitation, Membership, Role
 from app.core.tenancy.permissions import covers, invalid_grants
 from app.core.tenancy.product_config import OWNER_KEY
 from app.core.tenancy.repository import TenantRepository
@@ -33,6 +33,15 @@ class RoleRepository(TenantRepository[Role]):
         if excluding:
             statement = statement.where(Role.id != excluding)
         return (await self.session.scalars(statement)).first() is not None
+
+    async def has_pending_invitations(self, role_id: uuid.UUID) -> bool:
+        statement = select(func.count()).where(
+            Invitation.organization_id == self.organization_id,
+            Invitation.role_id == role_id,
+            Invitation.accepted_at.is_(None),
+            Invitation.expires_at > func.now(),
+        )
+        return bool(await self.session.scalar(statement))
 
     async def member_count(self, role_id: uuid.UUID) -> int:
         statement = select(func.count()).where(
@@ -103,7 +112,10 @@ async def delete_role(ctx: OrgContext, repo: RoleRepository, role_id: uuid.UUID)
     if role.is_system:
         raise ConflictError("Starter roles cannot be deleted.", code="system_role_locked")
     _check_not_above_you(ctx, role)
-    if await repo.member_count(role.id):
-        raise ConflictError("Move members to another role first.", code="role_in_use")
+    if await repo.member_count(role.id) or await repo.has_pending_invitations(role.id):
+        raise ConflictError(
+            "Move members to another role and revoke pending invitations first.",
+            code="role_in_use",
+        )
     await repo.delete(role)
     await repo.session.flush()

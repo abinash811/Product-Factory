@@ -27,6 +27,13 @@ $$ SELECT NULLIF(current_setting('app.current_user_id', true), '')::uuid $$
 """
 
 
+CURRENT_INVITE_HASH_FUNCTION = """
+CREATE FUNCTION app_current_invite_hash() RETURNS text
+LANGUAGE sql STABLE AS
+$$ SELECT NULLIF(current_setting('app.current_invite_hash', true), '') $$
+"""
+
+
 def enable_row_security(table: str) -> list[str]:
     """Turn security on for the table, including for the role that owns it."""
     return [

@@ -2,9 +2,9 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
 Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$")]
@@ -82,3 +82,34 @@ class MeOut(BaseModel):
 class PermissionOut(BaseModel):
     name: str
     description: str
+
+
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    role_id: uuid.UUID
+    expires_in_days: Annotated[int, Field(ge=1, le=30)] = 7
+
+
+class InvitationOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: RoleRef
+    status: Literal["pending", "accepted", "expired"]
+    expires_at: datetime
+    accepted_at: datetime | None
+    created_at: datetime
+
+
+class InvitationCreated(InvitationOut):
+    # Shown ONCE, at creation. Email delivery is added in build steps 5-6; until then the
+    # inviter passes this to the invitee (for example as a link).
+    token: str
+
+
+class InvitationAccept(BaseModel):
+    token: Annotated[str, StringConstraints(min_length=20, max_length=200)]
+
+
+class InvitationAccepted(BaseModel):
+    organization: OrganizationOut
+    role: RoleRef

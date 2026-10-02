@@ -20,3 +20,10 @@ async def set_current_organization(session: AsyncSession, organization_id: uuid.
     await session.execute(
         text("SELECT set_config('app.current_org', :value, true)"), {"value": str(organization_id)}
     )
+
+
+async def set_current_invite_hash(session: AsyncSession, token_hash: str) -> None:
+    """Makes exactly one invitation (the one whose secret token the caller holds) usable."""
+    await session.execute(
+        text("SELECT set_config('app.current_invite_hash', :value, true)"), {"value": token_hash}
+    )

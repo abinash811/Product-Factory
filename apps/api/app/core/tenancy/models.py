@@ -5,9 +5,11 @@ how queries are kept inside one organization.
 """
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
     ARRAY,
+    DateTime,
     ForeignKey,
     ForeignKeyConstraint,
     String,
@@ -73,3 +75,32 @@ class Membership(UUIDPrimaryKeyMixin, TimestampMixin, OrganizationOwnedMixin, Ba
 
     role: Mapped[Role] = relationship(lazy="joined", viewonly=True)
     user: Mapped[User] = relationship(lazy="joined", viewonly=True)
+
+
+class Invitation(UUIDPrimaryKeyMixin, TimestampMixin, OrganizationOwnedMixin, Base):
+    """An offer to join an organization in a role. Only a hash of the secret token is stored."""
+
+    __tablename__ = "invitations"
+    __table_args__ = (
+        # The role must belong to the same organization. Deleting the role removes its old
+        # invitations (the service refuses to delete a role that still has PENDING ones).
+        ForeignKeyConstraint(
+            ["organization_id", "role_id"],
+            ["roles.organization_id", "roles.id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    email: Mapped[str] = mapped_column(index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    invited_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    role: Mapped[Role] = relationship(lazy="joined", viewonly=True)
